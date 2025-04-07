@@ -273,7 +273,7 @@
         methods: {
           async fetchActivities() {
             try {
-              const response = await fetch("http://localhost:3000/collection/products");
+              const response = await fetch("https://after-school-activities-backend.onrender.com/collection/products");
               const data = await response.json();
               this.products = data; // update product list
             } catch (err) {
@@ -315,7 +315,7 @@
               };
 
               const response = await fetch(
-                "http://localhost:3000/place-order",
+                "https://after-school-activities-backend.onrender.com/place-order",
                 {
                   method: "POST",
                   headers: {
