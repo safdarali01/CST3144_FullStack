@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.js"></script>
+    <link rel="stylesheet" href="style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Navbar -->
+      <nav class="navbar">
+        <div class="nav-content">
+          <img src="images/logo.png" alt="Logo" class="logo" />
+          <div class="search-bar" v-if="!checkoutPage">
+            <input type="text" v-model="searchQuery" placeholder="Search..." />
+          </div>
+          <button
+            class="checkout-button"
+            v-if="cartitemcount > 0 || checkoutPage"
+            v-on:click="toggleCheckout"
+          >
+            <i class="fa-solid fa-cart-shopping"></i>
+            {{ checkoutPage ? 'Hide Checkout' : 'Checkout (' + cartitemcount +
+            ')' }}
+          </button>
+        </div>
+      </nav>
+
+      <!-- Filters -->
+      <div class="filter-section" v-if="!checkoutPage">
+        <label for="sort-by">Sort By:</label>
+        <select v-model="sortCategory">
+          <option value="price">Price</option>
+          <option value="location">Location</option>
+          <option value="availability">Availability</option>
+          <option value="name">Name</option>
+        </select>
+        <select v-model="sortOrder">
+          <option value="asc">Ascending</option>
+          <option value="desc">Descending</option>
+        </select>
+      </div>
+
+      <!-- Product Grid -->
+      <main v-if="!checkoutPage">
+        <div class="products-grid">
+          <div
+            v-for="product in sortedProducts"
+            :key="product.id"
+            class="product-item"
+          >
+            <h2 v-text="product.title"></h2>
+            <figure>
+              <img class="product-image" v-bind:src="product.image" />
+            </figure>
+            <p>Location: {{ product.location }}</p>
+            <p>Price: {{ product.price }} $</p>
+            <p>Available Items: {{ product.AvailableInventory }}</p>
+            <button
+              v-on:click="addToCart(product)"
+              v-if="canAddToCart(product)"
+            >
+              Add to cart
+            </button>
+            <button disabled v-else>Add to cart</button>
+            <span v-if="product.AvailableInventory <= 0">All out!</span>
+            <span v-else-if="product.AvailableInventory < 5">
+              Only {{ product.AvailableInventory }} left!
+            </span>
+          </div>
+        </div>
+      </main>
+
+      <!-- Checkout Screen -->
+      <div v-if="checkoutPage" class="checkout-div">
+        <div class="checkout-container">
+          <!-- Left Column -->
+          <div class="input-fields">
+            <h3>Customer Information</h3>
+            <p>
+              <strong>First Name:</strong>
+              <input v-model.trim="order.firstName" />
+            </p>
+            <p>
+              <strong>Last Name:</strong>
+              <input v-model.trim="order.lastName" />
+            </p>
+            <p><strong>Address:</strong> <input v-model="order.address" /></p>
+            <p><strong>City:</strong> <input v-model="order.city" /></p>
+            <p>
+              <strong>State:</strong>
+              <select v-model="order.state">
+                <option disabled value="">States</option>
+                <option v-for="(state, key) in states" :value="state">
+                  {{ key }}
+                </option>
+              </select>
+            </p>
+            <p>
+              <strong>Zip/Postal Code:</strong>
+              <input v-model.number="order.zip" type="number" />
+            </p>
+            <p>
+              <strong>Phone:</strong>
+              <input v-model.number="order.phone" type="number" />
+            </p>
+            <p>
+              <input
+                type="checkbox"
+                id="gift"
+                value="true"
+                v-model="order.gift"
+                class="checkboxess"
+              />
+              <label for="gift">Ship as Gift?</label>
+            </p>
+            <p>
+              <input
+                type="radio"
+                id="home"
+                value="Home"
+                v-model="order.method"
+                class="checkboxess"
+              />
+              <label for="home">Home</label>
+              <input
+                type="radio"
+                id="business"
+                value="Business"
+                v-model="order.method"
+                class="checkboxess"
+              />
+              <label for="business">Business</label>
+            </p>
+          </div>
+
+          <!-- Center Column -->
+          <div class="order-summary">
+            <h3>Order Details</h3>
+            <p><strong>First Name:</strong> {{ order.firstName }}</p>
+            <p><strong>Last Name:</strong> {{ order.lastName }}</p>
+            <p><strong>Address:</strong> {{ order.address }}</p>
+            <p><strong>City:</strong> {{ order.city }}</p>
+            <p><strong>State:</strong> {{ order.state }}</p>
+            <p><strong>Zip:</strong> {{ order.zip }}</p>
+            <p><strong>Phone:</strong> {{ order.phone }}</p>
+            <p><strong>Gift:</strong> {{ order.gift ? 'Yes' : 'No' }}</p>
+            <p><strong>Method:</strong> {{ order.method }}</p>
+          </div>
+
+          <!-- Right Column -->
+          <div class="cart-summary">
+            <h3>Cart Summary</h3>
+            <div v-if="cart.length > 0">
+              <div v-for="(item, index) in cart" :key="index" class="item">
+                <span>{{ item.subject }} - Price: {{ item.price }} AED</span>
+                <button class="delete-button" @click="removeFromCart(index)">
+                  Delete
+                </button>
+              </div>
+              <hr />
+              <p><strong>Total Price:</strong> {{ totalPrice }} AED</p>
+              <!-- Show button always, but disable if form not complete -->
+              <button
+                :disabled="!isOrderComplete"
+                @click="submitOrder"
+                class="checkout-button"
+              >
+                Place Order
+              </button>
+            </div>
+            <div v-else>
+              <p>Your cart is empty.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Popup -->
+      <div v-if="showPopup" class="popup">{{ popupMessage }}</div>
+    </div>
+
+    <!-- Vue App Script -->
+    <script>
+      new Vue({
+        el: "#app",
+        data: {
+          sitename: "After School Lessons",
+          searchQuery: "",
+          sortCategory: "price",
+          sortOrder: "asc",
+          products: [],
+          cart: [],
+          totalPrice: 0,
+          cartitemcount: 0,
+          checkoutPage: false,
+          showPopup: false,
+          popupMessage: "",
+          order: {
+            firstName: "",
+            lastName: "",
+            address: "",
+            city: "",
+            state: "",
+            zip: null,
+            phone: null,
+            gift: false,
+            method: "",
+          },
+          states: {
+            Dubai: "Dubai",
+            "Abu Dhabi": "Abu Dhabi",
+            Ajman: "Ajman",
+          },
+        },
+        computed: {
+          filteredProducts() {
+            return this.products.filter((product) => {
+              const query = this.searchQuery.toLowerCase();
+              return (
+                product.subject.toLowerCase().includes(query) ||
+                product.title.toLowerCase().includes(query) ||
+                product.location.toLowerCase().includes(query)
+              );
+            });
+          },
+          sortedProducts() {
+            let products = this.filteredProducts.slice();
+            if (this.sortCategory === "price") {
+              products.sort((a, b) =>
+                this.sortOrder === "asc" ? a.price - b.price : b.price - a.price
+              );
+            } else if (this.sortCategory === "availability") {
+              products.sort((a, b) =>
+                this.sortOrder === "asc"
+                  ? a.AvailableInventory - b.AvailableInventory
+                  : b.AvailableInventory - a.AvailableInventory
+              );
+            } else if (this.sortCategory === "location") {
+              products.sort((a, b) =>
+                this.sortOrder === "asc"
+                  ? a.location.localeCompare(b.location)
+                  : b.location.localeCompare(a.location)
+              );
+            } else if (this.sortCategory === "name") {
+              products.sort((a, b) =>
+                this.sortOrder === "asc"
+                  ? a.subject.localeCompare(b.subject)
+                  : b.subject.localeCompare(a.subject)
+              );
+            }
+            return products;
+          },
+          isOrderComplete() {
+            const o = this.order;
+            return (
+              o.firstName &&
+              o.lastName &&
+              o.address &&
+              o.city &&
+              o.state &&
+              o.zip &&
+              o.phone &&
+              o.method
+            );
+          },
+        },
+        methods: {
+          async fetchActivities() {
+            try {
+              const response = await fetch("http://localhost:3000/collection/products");
+              const data = await response.json();
+              this.products = data; // update product list
+            } catch (err) {
+              console.error("Error loading activities:", err);
+            }
+          },
+          canAddToCart(product) {
+            return product.AvailableInventory > 0;
+          },
+          addToCart(product) {
+            if (this.canAddToCart(product)) {
+              this.cart.push(product);
+              product.AvailableInventory--;
+              this.cartitemcount = this.cart.length;
+              this.calculateTotalPrice();
+            }
+          },
+          removeFromCart(index) {
+            const product = this.cart[index];
+            product.AvailableInventory++;
+            this.cart.splice(index, 1);
+            this.cartitemcount = this.cart.length;
+            this.calculateTotalPrice();
+          },
+          calculateTotalPrice() {
+            this.totalPrice = this.cart.reduce(
+              (sum, item) => sum + item.price,
+              0
+            );
+          },
+          toggleCheckout() {
+            this.checkoutPage = !this.checkoutPage;
+          },
+          async submitOrder() {
+            try {
+              const fullOrder = {
+                ...this.order,
+                cart: this.cart,
+              };
+
+              const response = await fetch(
+                "http://localhost:3000/place-order",
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(fullOrder),
+                }
+              );
+
+              const result = await response.json();
+
+              if (response.ok) {
+                this.popupMessage = "Order placed successfully!";
+                this.cart = [];
+                this.cartitemcount = 0;
+                this.totalPrice = 0;
+
+                // Reset form
+                this.order = {
+                  firstName: "",
+                  lastName: "",
+                  address: "",
+                  city: "",
+                  state: "",
+                  zip: null,
+                  phone: null,
+                  gift: false,
+                  method: "",
+                };
+              } else {
+                this.popupMessage = "Failed to place order: " + result.msg;
+              }
+
+              this.showPopup = true;
+              setTimeout(() => {
+                this.showPopup = false;
+                this.checkoutPage = false;
+              }, 3000);
+            } catch (err) {
+              console.error("Order submission error:", err);
+              this.popupMessage = "Error placing order.";
+              this.showPopup = true;
+            }
+          },
+        },
+        created() {
+          this.fetchActivities();
+        },
+      });
+    </script>
+  </body>
+</html>
